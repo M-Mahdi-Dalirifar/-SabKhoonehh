@@ -19,7 +19,10 @@ import {
   fetchUsersFromSupabase,
   fetchAnnouncementsFromSupabase,
   fetchCartableRequestsFromSupabase,
-  fetchHistoryFromSupabase
+  fetchHistoryFromSupabase,
+  fetchRoomConfigFromSupabase,
+  fetchRoomTurnFromSupabase,
+  updateRoomTurnInSupabase
 } from "./lib/supabaseService";
 
 export default function App() {
@@ -62,11 +65,16 @@ export default function App() {
   });
 
   const [currentTurnUserEmail, setCurrentTurnUserEmail] = useState<string>(() => {
-    return localStorage.getItem("sabkhooneh_turn_email") || "mahdi@sabkhooneh.ir";
+    return localStorage.getItem("sabkhooneh_turn_email") || "";
   });
 
   const [isSkippedToday, setIsSkippedToday] = useState<boolean>(() => {
     return localStorage.getItem("sabkhooneh_skipped_today") === "true";
+  });
+
+  const [roomConfig, setRoomConfig] = useState<{ garbage_days: number; vacuum_days: number }>(() => {
+    const saved = localStorage.getItem("sabkhooneh_room_config");
+    return saved ? JSON.parse(saved) : { garbage_days: 2, vacuum_days: 7 };
   });
 
   // Role control for dashboard toggle
@@ -78,33 +86,54 @@ export default function App() {
   const syncAllData = async () => {
     setIsSyncing(true);
     try {
-      const [fetchedUsers, fetchedAnnouncements, fetchedRequests, fetchedHistory] = await Promise.all([
+      const [fetchedUsers, fetchedAnnouncements, fetchedRequests, fetchedHistory, fetchedRoomConfig, fetchedTurn] = await Promise.all([
         fetchUsersFromSupabase(roomCode),
         fetchAnnouncementsFromSupabase(roomCode),
         fetchCartableRequestsFromSupabase(roomCode),
         fetchHistoryFromSupabase(roomCode),
+        fetchRoomConfigFromSupabase(roomCode),
+        fetchRoomTurnFromSupabase(roomCode),
       ]);
 
-      if (fetchedUsers && fetchedUsers.length > 0) {
+      if (fetchedUsers) {
         setUserDb(fetchedUsers);
         localStorage.setItem("sabkhooneh_users", JSON.stringify(fetchedUsers));
       }
-      if (fetchedAnnouncements && fetchedAnnouncements.length > 0) {
+      if (fetchedAnnouncements) {
         setAnnouncements(fetchedAnnouncements);
         localStorage.setItem("sabkhooneh_announcements", JSON.stringify(fetchedAnnouncements));
         const active = fetchedAnnouncements[0]?.text;
         if (active) {
           setActiveBroadcast(active);
           localStorage.setItem("sabkhooneh_active_broadcast", active);
+        } else {
+          setActiveBroadcast(null);
+          localStorage.removeItem("sabkhooneh_active_broadcast");
         }
       }
-      if (fetchedRequests && fetchedRequests.length > 0) {
+      if (fetchedRequests) {
         setCartableRequests(fetchedRequests);
         localStorage.setItem("sabkhooneh_requests", JSON.stringify(fetchedRequests));
       }
-      if (fetchedHistory && fetchedHistory.length > 0) {
+      if (fetchedHistory) {
         setHistoryList(fetchedHistory);
         localStorage.setItem("sabkhooneh_history", JSON.stringify(fetchedHistory));
+      }
+      if (fetchedRoomConfig) {
+        setRoomConfig(fetchedRoomConfig);
+        localStorage.setItem("sabkhooneh_room_config", JSON.stringify(fetchedRoomConfig));
+      }
+      if (fetchedTurn) {
+        setCurrentTurnUserEmail(fetchedTurn);
+        localStorage.setItem("sabkhooneh_turn_email", fetchedTurn);
+      } else if (fetchedUsers && fetchedUsers.length > 0) {
+        const citizens = fetchedUsers.filter(u => u.role === "Citizen");
+        if (citizens.length > 0) {
+          const firstEmail = citizens[0].email.toLowerCase().trim();
+          setCurrentTurnUserEmail(firstEmail);
+          localStorage.setItem("sabkhooneh_turn_email", firstEmail);
+          updateRoomTurnInSupabase(roomCode, firstEmail);
+        }
       }
     } catch (err) {
       console.warn("Active Sync fetch error, using local fallback state:", err);
@@ -247,6 +276,7 @@ export default function App() {
             setIsSkippedToday={setIsSkippedToday}
             syncAllData={syncAllData}
             isSyncing={isSyncing}
+            roomConfig={roomConfig}
           />
         )}
 

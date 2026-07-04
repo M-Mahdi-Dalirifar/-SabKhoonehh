@@ -20,7 +20,11 @@ import {
   Plus
 } from "lucide-react";
 
-import { updateMemberPointsInSupabase, logChoreHistoryToSupabase } from "../lib/supabaseService";
+import {
+  updateMemberPointsInSupabase,
+  logChoreHistoryToSupabase,
+  updateRoomTurnInSupabase
+} from "../lib/supabaseService";
 
 interface CitizenDashboardProps {
   roomName: string;
@@ -42,6 +46,7 @@ interface CitizenDashboardProps {
   setIsSkippedToday: (val: boolean) => void;
   syncAllData?: () => Promise<void>;
   isSyncing?: boolean;
+  roomConfig?: { garbage_days: number; vacuum_days: number };
 }
 
 export default function CitizenDashboard({
@@ -64,6 +69,7 @@ export default function CitizenDashboard({
   setIsSkippedToday,
   syncAllData,
   isSyncing = false,
+  roomConfig,
 }: CitizenDashboardProps) {
   const [activeBottomTab, setActiveBottomTab] = useState(0);
 
@@ -106,6 +112,7 @@ export default function CitizenDashboard({
       localStorage.setItem("sabkhooneh_turn_email", nextEmail);
       setIsSkippedToday(false);
       localStorage.setItem("sabkhooneh_skipped_today", "false");
+      await updateRoomTurnInSupabase(roomCode, nextEmail);
 
       triggerToast("🎉 خسته نباشید! کار نظافت ثبت شد و ۲۵ امتیاز دریافت کردید.");
       if (syncAllData) await syncAllData();
@@ -123,6 +130,7 @@ export default function CitizenDashboard({
     localStorage.setItem("sabkhooneh_turn_email", nextEmail);
     setIsSkippedToday(false);
     localStorage.setItem("sabkhooneh_skipped_today", "false");
+    await updateRoomTurnInSupabase(roomCode, nextEmail);
 
     const nextUser = citizenUsers.find((u) => u.email.toLowerCase() === nextEmail.toLowerCase());
 
@@ -258,7 +266,7 @@ export default function CitizenDashboard({
 
                 <div className="bg-white/10 p-3.5 rounded-2xl border border-white/10">
                   <p className="text-[11px] font-black leading-relaxed">
-                    🗑️ بیرون بردن کیسه‌های زباله سوئیت تفکیکی و 🧹 جاروی کامل سالن پذیرایی و راهروی جلو ورودی
+                    🗑️ بیرون بردن کیسه‌های زباله تفکیک‌شده سوئیت (دوره زمانی: هر {roomConfig?.garbage_days || 2} روز یکبار) و 🧹 جاروبرقی و نظافت کامل سالن پذیرایی و راهروی جلو ورودی (دوره زمانی: هر {roomConfig?.vacuum_days || 7} روز یکبار)
                   </p>
                 </div>
 

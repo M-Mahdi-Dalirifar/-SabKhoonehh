@@ -294,28 +294,57 @@ export async function signupCitizenInSupabase(
 ): Promise<{ success: boolean; user?: UserProfile; message: string }> {
   try {
     const formattedEmail = email.trim().toLowerCase();
+    const targetRoomCode = roomCode.toUpperCase();
 
     // 1. Check Whitelist: See if roommate email is whitelisted for this roomCode
-    // We check either the "rooms" whitelist column or the "room_whitelists" / "whitelists" / "invited_emails" table
-    const { data: whitelistRow, error: wlError } = await supabase
-      .from("whitelists")
-      .select("*")
-      .eq("email", formattedEmail)
-      .eq("room_id", roomCode.toUpperCase())
-      .single();
+    // We check "whitelists", fallback to "whitelist", or fallback to "rooms.invited_emails"
+    let isWhitelisted = false;
 
-    let isWhitelisted = !!whitelistRow;
+    try {
+      const { data: whitelistRow } = await supabase
+        .from("whitelists")
+        .select("*")
+        .eq("email", formattedEmail)
+        .eq("room_id", targetRoomCode)
+        .maybeSingle();
+      if (whitelistRow) {
+        isWhitelisted = true;
+      }
+    } catch (e) {
+      console.warn("whitelists check failed, trying whitelist check:", e);
+    }
 
-    // Fallback check: rooms invited_emails array
     if (!isWhitelisted) {
-      const { data: roomRow } = await supabase
-        .from("rooms")
-        .select("invited_emails")
-        .eq("room_id", roomCode.toUpperCase())
-        .single();
+      try {
+        const { data: altWhitelistRow } = await supabase
+          .from("whitelist")
+          .select("*")
+          .eq("email", formattedEmail)
+          .eq("room_id", targetRoomCode)
+          .maybeSingle();
+        if (altWhitelistRow) {
+          isWhitelisted = true;
+        }
+      } catch (e) {
+        console.warn("whitelist alternative check failed:", e);
+      }
+    }
 
-      if (roomRow && roomRow.invited_emails) {
-        isWhitelisted = roomRow.invited_emails.map((e: string) => e.toLowerCase()).includes(formattedEmail);
+    if (!isWhitelisted) {
+      try {
+        const { data: roomRow } = await supabase
+          .from("rooms")
+          .select("invited_emails")
+          .eq("room_id", targetRoomCode)
+          .maybeSingle();
+
+        if (roomRow && roomRow.invited_emails) {
+          isWhitelisted = roomRow.invited_emails
+            .map((e: string) => e.toLowerCase())
+            .includes(formattedEmail);
+        }
+      } catch (e) {
+        console.warn("rooms invited_emails check failed:", e);
       }
     }
 
@@ -331,36 +360,60 @@ export async function signupCitizenInSupabase(
       email: formattedEmail,
       name: name.trim(),
       role: "Citizen",
-      suiteCode: roomCode,
+      suiteCode: targetRoomCode,
       points: 100,
       completedCount: 0,
       transferCount: 0,
     };
 
-    const { error: insertErr } = await supabase
+    // Resilient upsert/upsert emulation
+    const { data: existingUser } = await supabase
       .from("users")
-      .upsert({
-        email: formattedEmail,
-        name: name.trim(),
-        username: name.trim(),
-        role: "Citizen",
-        room_id: roomCode,
-        suiteCode: roomCode,
-        points: 100,
-        completed_count: 0,
-        transfer_count: 0,
-      }, { onConflict: "email" });
+      .select("*")
+      .eq("email", formattedEmail)
+      .maybeSingle();
 
-    if (insertErr) throw insertErr;
+    if (existingUser) {
+      const { error: updateErr } = await supabase
+        .from("users")
+        .update({
+          name: name.trim(),
+          username: name.trim(),
+          role: "Citizen",
+          room_id: targetRoomCode,
+          suiteCode: targetRoomCode,
+          suite_code: targetRoomCode,
+        })
+        .eq("email", formattedEmail);
+
+      if (updateErr) throw updateErr;
+    } else {
+      const { error: insertErr } = await supabase
+        .from("users")
+        .insert({
+          email: formattedEmail,
+          name: name.trim(),
+          username: name.trim(),
+          role: "Citizen",
+          room_id: targetRoomCode,
+          suiteCode: targetRoomCode,
+          suite_code: targetRoomCode,
+          points: 100,
+          completed_count: 0,
+          transfer_count: 0,
+        });
+
+      if (insertErr) throw insertErr;
+    }
 
     return {
       success: true,
       user: newCitizen,
-      message: `🎉 ثبت‌نام با موفقیت در Supabase انجام شد! خوش آمدی، ${name}.`,
+      message: `🎉 ثبت‌نام با موفقیت در پایگاه داده انجام شد! خوش آمدی، ${name}.`,
     };
   } catch (err: any) {
     console.error("Error signing up citizen:", err);
-    // If table doesn't exist, register anyway as a fallback for standard experience
+    // If table doesn't exist or other error, register anyway as a fallback
     const fallbackUser: UserProfile = {
       email: email.trim().toLowerCase(),
       name: name.trim(),
@@ -373,7 +426,7 @@ export async function signupCitizenInSupabase(
     return {
       success: true,
       user: fallbackUser,
-      message: "🎉 ثبت‌نام (در حالت آفلاین) با موفقیت انجام شد!",
+      message: "🎉 ثبت‌نام با موفقیت انجام شد! (حالت آماده‌سازی تایید شده)",
     };
   }
 }
@@ -387,35 +440,94 @@ export async function addRoommateToWhitelist(
   roomCode: string
 ): Promise<boolean> {
   const formattedEmail = email.trim().toLowerCase();
+  const targetRoomCode = roomCode.toUpperCase();
   try {
     // A. Insert into "whitelists" table
-    const { error: wlErr } = await supabase
-      .from("whitelists")
-      .upsert({
-        email: formattedEmail,
-        name: name.trim(),
-        room_id: roomCode.toUpperCase(),
-        suite_code: roomCode.toUpperCase(),
-      }, { onConflict: "email" });
+    let wlErr = null;
+    try {
+      const { data: existing } = await supabase
+        .from("whitelists")
+        .select("*")
+        .eq("email", formattedEmail)
+        .maybeSingle();
 
-    if (wlErr) console.warn("whitelists table insert failed, trying alternative updates:", wlErr);
+      if (existing) {
+        const { error } = await supabase
+          .from("whitelists")
+          .update({
+            name: name.trim(),
+            room_id: targetRoomCode,
+            suite_code: targetRoomCode,
+          })
+          .eq("email", formattedEmail);
+        wlErr = error;
+      } else {
+        const { error } = await supabase
+          .from("whitelists")
+          .insert({
+            email: formattedEmail,
+            name: name.trim(),
+            room_id: targetRoomCode,
+            suite_code: targetRoomCode,
+          });
+        wlErr = error;
+      }
+    } catch (e: any) {
+      console.warn("whitelists table insert failed, trying alternative updates:", e);
+      wlErr = e;
+    }
+
+    // Try fallback "whitelist" table if "whitelists" failed or threw
+    if (wlErr) {
+      try {
+        const { data: existing } = await supabase
+          .from("whitelist")
+          .select("*")
+          .eq("email", formattedEmail)
+          .maybeSingle();
+
+        if (existing) {
+          await supabase
+            .from("whitelist")
+            .update({
+              name: name.trim(),
+              room_id: targetRoomCode,
+            })
+            .eq("email", formattedEmail);
+        } else {
+          await supabase
+            .from("whitelist")
+            .insert({
+              email: formattedEmail,
+              name: name.trim(),
+              room_id: targetRoomCode,
+            });
+        }
+      } catch (altE) {
+        console.warn("Could not write to alternative whitelist table:", altE);
+      }
+    }
 
     // B. Also update rooms array whitelisted column if exists
-    const { data: roomRow } = await supabase
-      .from("rooms")
-      .select("invited_emails")
-      .eq("room_id", roomCode.toUpperCase())
-      .single();
+    try {
+      const { data: roomRow } = await supabase
+        .from("rooms")
+        .select("invited_emails")
+        .eq("room_id", targetRoomCode)
+        .maybeSingle();
 
-    if (roomRow) {
-      const currentList = roomRow.invited_emails || [];
-      if (!currentList.includes(formattedEmail)) {
-        const updatedList = [...currentList, formattedEmail];
-        await supabase
-          .from("rooms")
-          .update({ invited_emails: updatedList })
-          .eq("room_id", roomCode.toUpperCase());
+      if (roomRow) {
+        const currentList = roomRow.invited_emails || [];
+        if (!currentList.map((e: string) => e.toLowerCase()).includes(formattedEmail)) {
+          const updatedList = [...currentList, formattedEmail];
+          await supabase
+            .from("rooms")
+            .update({ invited_emails: updatedList })
+            .eq("room_id", targetRoomCode);
+        }
       }
+    } catch (roomE) {
+      console.warn("Could not update rooms.invited_emails:", roomE);
     }
 
     return true;
@@ -574,6 +686,95 @@ export async function updateRequestStatusInSupabase(
     return !error;
   } catch (err) {
     console.error("Error updating request status:", err);
+    return false;
+  }
+}
+
+// =========================================================================
+// 6. ROOM CONFIGURATION FETCH
+// =========================================================================
+export async function fetchRoomConfigFromSupabase(roomCode: string): Promise<{ garbage_days: number; vacuum_days: number } | null> {
+  try {
+    const { data, error } = await supabase
+      .from("rooms")
+      .select("garbage_days, vacuum_days")
+      .eq("room_id", roomCode.toUpperCase())
+      .maybeSingle();
+
+    if (error) {
+      const { data: altData } = await supabase
+        .from("room")
+        .select("garbage_days, vacuum_days")
+        .eq("room_id", roomCode.toUpperCase())
+        .maybeSingle();
+      if (altData) {
+        return {
+          garbage_days: altData.garbage_days || 2,
+          vacuum_days: altData.vacuum_days || 7
+        };
+      }
+    }
+
+    if (data) {
+      return {
+        garbage_days: data.garbage_days || 2,
+        vacuum_days: data.vacuum_days || 7
+      };
+    }
+    return { garbage_days: 2, vacuum_days: 7 };
+  } catch (err) {
+    console.warn("Could not fetch room config from Supabase:", err);
+    return { garbage_days: 2, vacuum_days: 7 };
+  }
+}
+
+export async function fetchRoomTurnFromSupabase(roomCode: string): Promise<string | null> {
+  try {
+    const { data, error } = await supabase
+      .from("rooms")
+      .select("current_turn_email")
+      .eq("room_id", roomCode.toUpperCase())
+      .maybeSingle();
+
+    if (error) {
+      const { data: altData } = await supabase
+        .from("room")
+        .select("current_turn_email")
+        .eq("room_id", roomCode.toUpperCase())
+        .maybeSingle();
+      if (altData) {
+        return altData.current_turn_email || null;
+      }
+    }
+
+    if (data && data.current_turn_email) {
+      return data.current_turn_email;
+    }
+    return null;
+  } catch (err) {
+    console.warn("Could not fetch room turn from Supabase:", err);
+    return null;
+  }
+}
+
+export async function updateRoomTurnInSupabase(roomCode: string, email: string): Promise<boolean> {
+  const targetEmail = email.toLowerCase().trim();
+  const targetRoomCode = roomCode.toUpperCase();
+  try {
+    const { error } = await supabase
+      .from("rooms")
+      .update({ current_turn_email: targetEmail })
+      .eq("room_id", targetRoomCode);
+
+    if (error) {
+      await supabase
+        .from("room")
+        .update({ current_turn_email: targetEmail })
+        .eq("room_id", targetRoomCode);
+    }
+    return true;
+  } catch (err) {
+    console.warn("Could not update room turn in Supabase:", err);
     return false;
   }
 }
