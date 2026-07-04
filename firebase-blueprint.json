@@ -1,0 +1,166 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile in the SabKhooneh application.",
+      "type": "object",
+      "properties": {
+        "username": {
+          "type": "string",
+          "description": "نام کاربری کاربر - مثلا: محمد"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "آدرس ایمیل کاربر - مثلا: mohammad@example.com"
+        },
+        "points": {
+          "type": "integer",
+          "description": "امتیازات انباشته شده کاربر - مثلا: ۱۵۰"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["Mayor", "Citizen"],
+          "description": "نقش کاربر (شهردار: Mayor یا شهروند: Citizen)"
+        }
+      },
+      "required": ["username", "email", "points", "role"]
+    },
+    "Room": {
+      "title": "Room",
+      "description": "Room configuration and member invitation details.",
+      "type": "object",
+      "properties": {
+        "room_number": {
+          "type": "string",
+          "description": "شماره اتاق - مثلا: ۱۰۱"
+        },
+        "invited_emails": {
+          "type": "array",
+          "description": "لیست ایمیل‌های دعوت شده به اتاق - مثلا: [ali@example.com, zahra@example.com]"
+        },
+        "garbage_days": {
+          "type": "integer",
+          "description": "دوره زمانی بیرون بردن زباله به روز - مثلا: ۲"
+        },
+        "vacuum_days": {
+          "type": "integer",
+          "description": "دوره زمانی جاروبرقی کشیدن به روز - مثلا: ۷"
+        }
+      },
+      "required": ["room_number", "invited_emails", "garbage_days", "vacuum_days"]
+    },
+    "RotationQueue": {
+      "title": "Rotation Queue",
+      "description": "Sequence and turn management for chores in a room.",
+      "type": "object",
+      "properties": {
+        "room_number": {
+          "type": "string",
+          "description": "شماره اتاق مربوطه - مثلا: ۱۰۱"
+        },
+        "task_type": {
+          "type": "string",
+          "enum": ["garbage", "vacuum"],
+          "description": "نوع فعالیت نوبتی - مثلا: garbage (زباله) یا vacuum (جاروبرقی)"
+        },
+        "sequence": {
+          "type": "array",
+          "description": "ترتیب دستی اولیه اعضا بر اساس ایمیل - مثلا: [mohammad@example.com, ali@example.com, zahra@example.com]"
+        },
+        "current_turn_index": {
+          "type": "integer",
+          "description": "شاخص عضو دارای نوبت فعلی در آرایه ترتیب - مثلا: ۰"
+        },
+        "owed_turns": {
+          "type": "object",
+          "description": "تعداد نوبت‌های طلبکار یا بدهکار هر کاربر به صورت کلید-مقدار ایمیل به عدد - مثلا: {ali@example.com: ۱}"
+        }
+      },
+      "required": ["room_number", "task_type", "sequence", "current_turn_index", "owed_turns"]
+    },
+    "TravelMode": {
+      "title": "Travel Mode",
+      "description": "Absence periods during which a citizen is skipped from the queue.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "ایمیل کاربر متقاضی مرخصی - مثلا: ali@example.com"
+        },
+        "from_date": {
+          "type": "string",
+          "description": "تاریخ شروع عدم حضور به تقویم جلالی (شمسی) - مثلا: ۱۴۰۵/۰۴/۱۵"
+        },
+        "to_date": {
+          "type": "string",
+          "description": "تاریخ پایان عدم حضور به تقویم جلالی (شمسی) - مثلا: ۱۴۰۵/۰۴/۲۲"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "approved", "rejected"],
+          "description": "وضعیت تایید مرخصی - مثلا: pending (در انتظار تایید)"
+        }
+      },
+      "required": ["email", "from_date", "to_date", "status"]
+    },
+    "Cartable": {
+      "title": "Cartable (Approvals)",
+      "description": "Pending requests requiring approval from the room's Mayor.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "شناسه یکتای درخواست - مثلا: req_001"
+        },
+        "request_type": {
+          "type": "string",
+          "enum": ["task_completion", "travel_request", "extra_task_request"],
+          "description": "نوع درخواست - مثلا: task_completion (تکمیل کار)، travel_request (درخواست مرخصی)، extra_task_request (کار اضافی)"
+        },
+        "requester_email": {
+          "type": "string",
+          "format": "email",
+          "description": "ایمیل ثبت‌کننده درخواست - مثلا: ali@example.com"
+        },
+        "details": {
+          "type": "object",
+          "description": "جزئیات فنی مربوط به درخواست بر اساس نوع آن - مثلا: {task_type: garbage, completion_date: ۱۴۰۵/۰۴/۱۲}"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "approved", "rejected"],
+          "description": "وضعیت بررسی درخواست - مثلا: pending (در انتظار تایید)"
+        },
+        "created_at": {
+          "type": "string",
+          "description": "تاریخ شمسی ایجاد درخواست - مثلا: ۱۴۰۵/۰۴/۱۰"
+        }
+      },
+      "required": ["id", "request_type", "requester_email", "details", "status", "created_at"]
+    }
+  },
+  "firestore": {
+    "users": {
+      "schema": "User",
+      "description": "مجموعه کاربران و اطلاعات هویتی و امتیازی آن‌ها"
+    },
+    "rooms": {
+      "schema": "Room",
+      "description": "مجموعه اتاق‌ها، شماره اتاق و بازه‌های زمانی فعالیت‌ها"
+    },
+    "rotation_queues": {
+      "schema": "RotationQueue",
+      "description": "مجموعه نوبت‌دهی و ترتیب فعالیت‌های چرخشی خانه"
+    },
+    "travel_modes": {
+      "schema": "TravelMode",
+      "description": "دوران سفر و غیبت موقت کاربران جهت خروج موقت از صف نوبت"
+    },
+    "cartable": {
+      "schema": "Cartable",
+      "description": "کارتابل درخواست‌های ارسالی شهروندان جهت بررسی و تایید شهردار"
+    }
+  }
+}

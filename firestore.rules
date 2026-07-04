@@ -1,0 +1,65 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions for security rules
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.token.email)).data;
+    }
+    
+    function isMayor() {
+      return isSignedIn() && getUserData().role == "Mayor";
+    }
+    
+    function isCitizen() {
+      return isSignedIn() && getUserData().role == "Citizen";
+    }
+
+    // 1. Users Collection
+    match /users/{email} {
+      // Users can be read by anyone in the same house, but written by themselves or the Mayor
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && (request.auth.token.email == email || isMayor());
+    }
+
+    // 2. Rooms Collection
+    match /rooms/{roomNumber} {
+      // Room details can be read by invited emails, and managed by the Mayor
+      allow read: if isSignedIn() && (request.auth.token.email in resource.data.invited_emails);
+      allow create, update: if isSignedIn() && isMayor();
+      allow delete: if false; // Rooms cannot be deleted easily
+    }
+
+    // 3. Rotation Queues Collection
+    match /rotation_queues/{queueId} {
+      // Anyone signed in can read queues to know active turns
+      allow read: if isSignedIn();
+      // Only the Mayor can modify manual order or current turns
+      allow write: if isSignedIn() && isMayor();
+    }
+
+    // 4. Travel Mode Collection
+    match /travel_modes/{travelId} {
+      // Any member can read absence periods to see who is skipped
+      allow read: if isSignedIn();
+      // Citizens can create their travel request, Mayor can approve or reject
+      allow create: if isSignedIn() && (request.resource.data.email == request.auth.token.email);
+      allow update, delete: if isSignedIn() && (isMayor() || request.auth.token.email == resource.data.email);
+    }
+
+    // 5. Cartable Collection
+    match /cartable/{requestId} {
+      // Members can read requests
+      allow read: if isSignedIn();
+      // Citizens can submit requests for approval
+      allow create: if isSignedIn() && (request.resource.data.requester_email == request.auth.token.email);
+      // Only the Mayor can update (approve/reject) requests, or the citizen can cancel/delete theirs before review
+      allow update: if isSignedIn() && (isMayor() || (request.auth.token.email == resource.data.requester_email && resource.data.status == "pending"));
+      allow delete: if isSignedIn() && (request.auth.token.email == resource.data.requester_email && resource.data.status == "pending");
+    }
+  }
+}

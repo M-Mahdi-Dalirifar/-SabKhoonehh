@@ -1,0 +1,6 @@
+{
+  "name": "SabKhooneh",
+  "description": "A modern mobile-first web application for managing shared home chores (SabKhooneh) including rotating queues, vacuuming, garbage duty, and vacation modes, optimized for mobile devices with dedicated Citizen and Mayor dashboards.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
