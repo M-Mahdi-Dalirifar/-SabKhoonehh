@@ -26,4 +26,4 @@ Do not commit private credentials, service-role keys, production tokens, or pers
 
 The Supabase anon key is a browser-facing credential. Data access must still be restricted with appropriate Supabase Row Level Security policies.
 
-The fixed OTP shortcut currently present in the development UI is not suitable for production. The initial database migration enables RLS without permissive policies, so deployments remain closed by default until verified authentication and room-scoped policies are implemented. See `docs/SUPABASE_SETUP.md`.
+The fixed development OTP shortcut has been removed. The initial database migration enables RLS without permissive policies, so deployments remain closed by default until verified signup provisioning and authenticated room-scoped policies are implemented. See `docs/SUPABASE_SETUP.md`.

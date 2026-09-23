@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { UserProfile, generateRoomCode } from "../types";
-import { Key, Mail, ShieldAlert, Sparkles, User, Home, ArrowRight, Check, Copy } from "lucide-react";
+import { Key, Mail, ShieldAlert, Sparkles, User, Home, ArrowRight, Check } from "lucide-react";
 import {
   sendLoginOtp,
   verifyLoginOtp,
@@ -47,8 +47,6 @@ export default function LoginScreen({
   const [signupCitizenEmail, setSignupCitizenEmail] = useState("");
   const [signupCitizenCode, setSignupCitizenCode] = useState("");
 
-  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
-  const [generatedCode, setGeneratedCode] = useState("");
 
   // Handle email submit for OTP
   const handleRequestOtp = async (e: React.FormEvent) => {
@@ -95,16 +93,9 @@ export default function LoginScreen({
           if (syncAllData) await syncAllData();
           onLoginSuccess(loggedUser);
         } else {
-          // Fallback to local DB check for offline testing with standard "1405" code
-          const matchedUser = userDb.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
-          if (matchedUser && codeStr === "1405") {
-            triggerToast(`✅ خوش آمدید، ${matchedUser.name}! (حالت لوکال)`);
-            onLoginSuccess(matchedUser);
-          } else {
-            triggerToast("❌ کد تایید نادرست است یا حساب شما هنوز ثبت‌نام نشده است.");
-            setOtpDigits(["", "", "", ""]);
-            otpRefs[0].current?.focus();
-          }
+          triggerToast("❌ کد تایید نادرست است یا حساب شما هنوز ثبت‌نام نشده است.");
+          setOtpDigits(["", "", "", ""]);
+          otpRefs[0].current?.focus();
         }
       };
       verify();
@@ -120,17 +111,21 @@ export default function LoginScreen({
     }
 
     const newCode = generateRoomCode();
-    setGeneratedCode(newCode);
     setRoomCode(newCode);
     setRoomName(signupMayorSuite.trim());
 
-    // Register Mayor in Supabase
-    const newMayorProfile = await signupMayorInSupabase(
-      signupMayorName,
-      signupMayorEmail,
-      signupMayorSuite,
-      newCode
-    );
+    let newMayorProfile: UserProfile;
+    try {
+      newMayorProfile = await signupMayorInSupabase(
+        signupMayorName,
+        signupMayorEmail,
+        signupMayorSuite,
+        newCode
+      );
+    } catch {
+      triggerToast("❌ ثبت‌نام امن شهردار انجام نشد. تنظیمات Supabase را بررسی کنید.");
+      return;
+    }
 
     const updatedDb = [...userDb, newMayorProfile];
     setUserDb(updatedDb);
@@ -138,29 +133,8 @@ export default function LoginScreen({
     localStorage.setItem("sabkhooneh_room_code", newCode);
     localStorage.setItem("sabkhooneh_room_name", signupMayorSuite.trim());
 
-    setShowWelcomeModal(true);
-  };
-
-  // Confirm Mayor Setup and Proceed to Dashboard
-  const handleProceedAsMayor = async () => {
-    setShowWelcomeModal(false);
-    const newMayor = userDb.find((u) => u.email.toLowerCase() === signupMayorEmail.trim().toLowerCase());
-    if (newMayor) {
-      if (syncAllData) await syncAllData();
-      onLoginSuccess(newMayor);
-    } else {
-      const mayor = {
-        email: signupMayorEmail.trim().toLowerCase(),
-        name: signupMayorName.trim(),
-        role: "Mayor" as const,
-        suiteCode: generatedCode,
-        points: 200,
-        completedCount: 0,
-        transferCount: 0,
-      };
-      if (syncAllData) await syncAllData();
-      onLoginSuccess(mayor);
-    }
+    if (syncAllData) await syncAllData();
+    onLoginSuccess(newMayorProfile);
   };
 
   // Citizen Signup
@@ -188,20 +162,6 @@ export default function LoginScreen({
       localStorage.setItem("sabkhooneh_users", JSON.stringify(updatedDb));
       if (syncAllData) await syncAllData();
       onLoginSuccess(res.user);
-    }
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    triggerToast("📋 کد اتاق در حافظه کپی شد!");
-  };
-
-  const handleDemoBypass = async (emailToUse: string) => {
-    const found = userDb.find((u) => u.email === emailToUse);
-    if (found) {
-      triggerToast(`⚡ ورود سریع به عنوان ${found.role === "Mayor" ? "👑 شهردار" : "🧑‍🎓 هم‌اتاقی"}`);
-      if (syncAllData) await syncAllData();
-      onLoginSuccess(found);
     }
   };
 
@@ -416,71 +376,6 @@ export default function LoginScreen({
         )}
 
       </div>
-
-      {/* QUICK TESTING ACCESS DEMO BOX */}
-      <div className="mt-8 z-10 bg-slate-900/40 p-4 rounded-2xl border border-slate-800/60 text-right space-y-2.5">
-        <span className="text-[9px] font-black text-indigo-400 block tracking-wider">⚡ دسترسی سریع تستی مخصوص ارزیابی (بای‌پاس OTP):</span>
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            onClick={() => handleDemoBypass("shahrdar@sabkhooneh.ir")}
-            className="p-2.5 bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-800/50 rounded-xl text-[9px] font-black text-indigo-200 transition-all text-center cursor-pointer"
-          >
-            👑 ورود سریع شهردار (علوی)
-          </button>
-          <button
-            onClick={() => handleDemoBypass("mahdi@sabkhooneh.ir")}
-            className="p-2.5 bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-800/50 rounded-xl text-[9px] font-black text-indigo-200 transition-all text-center cursor-pointer"
-          >
-            🧑‍🎓 ورود سریع هم‌اتاقی (دلیری)
-          </button>
-        </div>
-        <div className="text-center pt-0.5 border-t border-slate-800 text-[8.5px] text-slate-400 font-bold">
-          کد پیامکی تستی عمومی: <strong className="font-mono text-indigo-300">1405</strong>
-        </div>
-      </div>
-
-      {/* NEWLY GENERATED ROOM CODE MODAL OVERLAY */}
-      <AnimatePresence>
-        {showWelcomeModal && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 0.6 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black z-40"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[85%] max-w-sm bg-slate-900 border border-indigo-500/30 rounded-3xl p-5 shadow-2xl z-50 text-right space-y-4"
-            >
-              <div className="text-center">
-                <span className="text-3xl">🎉</span>
-                <h3 className="text-sm font-black text-white mt-2">سوئیت با موفقیت تشکیل شد!</h3>
-                <p className="text-[10px] text-slate-400 mt-1 font-bold">کد زیر را کپی کرده و برای هم‌اتاقی‌های خود ارسال کنید تا عضو سوئیت شوند:</p>
-              </div>
-
-              <div className="bg-slate-950 p-3.5 rounded-2xl border border-indigo-500/20 flex items-center justify-between">
-                <span className="text-base font-black tracking-widest text-indigo-300 uppercase">{generatedCode}</span>
-                <button
-                  onClick={() => copyToClipboard(generatedCode)}
-                  className="p-2 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 hover:text-indigo-300 rounded-xl transition-all cursor-pointer"
-                >
-                  <Copy className="w-4 h-4" />
-                </button>
-              </div>
-
-              <button
-                onClick={handleProceedAsMayor}
-                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-black rounded-xl transition-all cursor-pointer shadow-md"
-              >
-                ورود به پنل مدیریت شهردار سوئیت
-              </button>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
 
     </div>
   );

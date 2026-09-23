@@ -23,7 +23,8 @@ export async function fetchUsersFromSupabase(roomCode: string): Promise<UserProf
   try {
     const { data, error } = await supabase
       .from("users")
-      .select("*");
+      .select("*")
+      .eq("room_id", roomCode.toUpperCase());
     
     if (error) throw error;
     if (!data) return [];
@@ -42,6 +43,7 @@ export async function fetchAnnouncementsFromSupabase(roomCode: string): Promise<
     const { data, error } = await supabase
       .from("announcements")
       .select("*")
+      .eq("room_id", roomCode.toUpperCase())
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -75,6 +77,7 @@ export async function fetchCartableRequestsFromSupabase(roomCode: string): Promi
     const { data, error } = await supabase
       .from("cartable_requests")
       .select("*")
+      .eq("room_id", roomCode.toUpperCase())
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -113,6 +116,7 @@ export async function fetchHistoryFromSupabase(roomCode: string): Promise<Histor
     const { data, error } = await supabase
       .from("chores_history")
       .select("*")
+      .eq("room_id", roomCode.toUpperCase())
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -149,18 +153,8 @@ export async function fetchHistoryFromSupabase(roomCode: string): Promise<Histor
 // Passwordless email login request
 export async function sendLoginOtp(email: string): Promise<{ success: boolean; message: string }> {
   try {
-    // 1. Check if user exists in our users table
-    const { data: user, error: userErr } = await supabase
-      .from("users")
-      .select("*")
-      .eq("email", email.trim().toLowerCase())
-      .single();
-
-    if (userErr || !user) {
-      return { success: false, message: "❌ این ایمیل در سامانه صابخونه ثبت نشده است. ابتدا ثبت‌نام کنید." };
-    }
-
-    // 2. Trigger real Supabase passwordless OTP
+    // Request a real passwordless OTP. Profile lookup happens only after the
+    // email is verified, so RLS never needs to expose the users table publicly.
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim().toLowerCase(),
       options: {
@@ -168,33 +162,17 @@ export async function sendLoginOtp(email: string): Promise<{ success: boolean; m
       }
     });
 
-    if (error) {
-      console.warn("Supabase signInWithOtp failed, entering demo mode:", error);
-      // Fallback message for easy testing
-      return { success: true, message: "📨 کد تایید (دمو: ۱۴۰۵) ارسال شد. (حالت آزمایشی فعال است)" };
-    }
+    if (error) return { success: false, message: "❌ ارسال کد تایید ناموفق بود. تنظیمات Supabase را بررسی کنید." };
 
     return { success: true, message: "📨 کد تایید واقعی به ایمیل شما فرستاده شد!" };
   } catch (err: any) {
     console.error("Login OTP error:", err);
-    return { success: true, message: "📨 کد تایید ارسال شد! (امکان ورود با کد دمو ۱۴۰۵ نیز مهیا است)" };
+    return { success: false, message: "❌ ارتباط با سرویس ورود برقرار نشد." };
   }
 }
 
 // Verify OTP
 export async function verifyLoginOtp(email: string, code: string): Promise<UserProfile | null> {
-  // Demo code check first to bypass real OTP in sandboxed environments if needed
-  if (code === "1405") {
-    const { data: user } = await supabase
-      .from("users")
-      .select("*")
-      .eq("email", email.trim().toLowerCase())
-      .single();
-    if (user) {
-      return mapUser(user, user.room_id || "SAB402");
-    }
-  }
-
   try {
     const { data, error } = await supabase.auth.verifyOtp({
       email: email.trim().toLowerCase(),
@@ -217,15 +195,6 @@ export async function verifyLoginOtp(email: string, code: string): Promise<UserP
     return null;
   } catch (err) {
     console.error("OTP verification failed:", err);
-    // If real Supabase auth fails, fallback to checking database directly for the demo flow
-    const { data: fallbackUser } = await supabase
-      .from("users")
-      .select("*")
-      .eq("email", email.trim().toLowerCase())
-      .single();
-    if (fallbackUser && code === "1405") {
-      return mapUser(fallbackUser, fallbackUser.room_id || "SAB402");
-    }
     return null;
   }
 }
@@ -281,6 +250,7 @@ export async function signupMayorInSupabase(
     if (userErr) throw userErr;
   } catch (err) {
     console.error("Error signing up mayor:", err);
+    throw new Error("Mayor signup could not be persisted securely.");
   }
 
   return newMayor;
@@ -413,20 +383,9 @@ export async function signupCitizenInSupabase(
     };
   } catch (err: any) {
     console.error("Error signing up citizen:", err);
-    // If table doesn't exist or other error, register anyway as a fallback
-    const fallbackUser: UserProfile = {
-      email: email.trim().toLowerCase(),
-      name: name.trim(),
-      role: "Citizen",
-      suiteCode: roomCode,
-      points: 100,
-      completedCount: 0,
-      transferCount: 0,
-    };
     return {
-      success: true,
-      user: fallbackUser,
-      message: "🎉 ثبت‌نام با موفقیت انجام شد! (حالت آماده‌سازی تایید شده)",
+      success: false,
+      message: "❌ ثبت‌نام امن انجام نشد. اتصال و سیاست‌های دسترسی Supabase را بررسی کنید.",
     };
   }
 }
@@ -576,6 +535,7 @@ export async function logChoreHistoryToSupabase(
   email: string,
   action: string,
   type: "chore" | "travel" | "extra_task" | "system" | "points",
+  roomCode: string,
   date: string = "۱۴۰۵/۰۴/۰۴"
 ): Promise<boolean> {
   try {
@@ -589,6 +549,7 @@ export async function logChoreHistoryToSupabase(
         action,
         type,
         date,
+        room_id: roomCode.toUpperCase(),
         created_at: new Date().toISOString(),
       });
 
@@ -619,6 +580,7 @@ export async function logChoreHistoryToSupabase(
 export async function createAnnouncementInSupabase(
   text: string,
   author: string,
+  roomCode: string,
   date: string = "۱۴۰۵/۰۴/۰۴"
 ): Promise<boolean> {
   try {
@@ -629,6 +591,7 @@ export async function createAnnouncementInSupabase(
         text,
         author,
         date,
+        room_id: roomCode.toUpperCase(),
         created_at: new Date().toISOString()
       });
     return !error;
@@ -638,12 +601,13 @@ export async function createAnnouncementInSupabase(
   }
 }
 
-export async function deleteAnnouncementFromSupabase(id: string): Promise<boolean> {
+export async function deleteAnnouncementFromSupabase(id: string, roomCode: string): Promise<boolean> {
   try {
     const { error } = await supabase
       .from("announcements")
       .delete()
-      .eq("id", id);
+      .eq("id", id)
+      .eq("room_id", roomCode.toUpperCase());
     return !error;
   } catch (err) {
     console.error("Error deleting announcement:", err);
@@ -652,7 +616,8 @@ export async function deleteAnnouncementFromSupabase(id: string): Promise<boolea
 }
 
 export async function createRequestInSupabase(
-  request: CartableRequest
+  request: CartableRequest,
+  roomCode: string
 ): Promise<boolean> {
   try {
     const { error } = await supabase
@@ -665,6 +630,7 @@ export async function createRequestInSupabase(
         details: request.details,
         status: request.status,
         date: request.date,
+        room_id: roomCode.toUpperCase(),
         created_at: new Date().toISOString()
       });
     return !error;
@@ -676,13 +642,15 @@ export async function createRequestInSupabase(
 
 export async function updateRequestStatusInSupabase(
   id: string,
-  status: "approved" | "rejected"
+  status: "approved" | "rejected",
+  roomCode: string
 ): Promise<boolean> {
   try {
     const { error } = await supabase
       .from("cartable_requests")
       .update({ status })
-      .eq("id", id);
+      .eq("id", id)
+      .eq("room_id", roomCode.toUpperCase());
     return !error;
   } catch (err) {
     console.error("Error updating request status:", err);
