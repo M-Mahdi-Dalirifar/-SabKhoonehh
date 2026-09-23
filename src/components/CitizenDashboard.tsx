@@ -25,6 +25,7 @@ import {
   logChoreHistoryToSupabase,
   updateRoomTurnInSupabase
 } from "../lib/supabaseService";
+import { getNextCitizenEmail } from "../lib/rotation";
 
 interface CitizenDashboardProps {
   roomName: string;
@@ -82,14 +83,6 @@ export default function CitizenDashboard({
 
   const isMyTurn = currentChoreUser?.email.toLowerCase() === myProfile.email.toLowerCase();
 
-  // Find next citizen in queue
-  const getNextCitizenEmail = () => {
-    if (citizenUsers.length <= 1) return currentTurnUserEmail;
-    const currentIndex = citizenUsers.findIndex((u) => u.email.toLowerCase() === currentTurnUserEmail.toLowerCase());
-    const nextIndex = (currentIndex + 1) % citizenUsers.length;
-    return citizenUsers[nextIndex].email;
-  };
-
   // Chore actions
   const handleCompleteChore = async () => {
     if (!isMyTurn) return;
@@ -107,7 +100,7 @@ export default function CitizenDashboard({
       );
 
       // Advance turn and reset skip
-      const nextEmail = getNextCitizenEmail();
+      const nextEmail = getNextCitizenEmail(userDb, currentTurnUserEmail);
       setCurrentTurnUserEmail(nextEmail);
       localStorage.setItem("sabkhooneh_turn_email", nextEmail);
       setIsSkippedToday(false);
@@ -125,7 +118,7 @@ export default function CitizenDashboard({
     if (!isMyTurn) return;
 
     // Advance turn to next user
-    const nextEmail = getNextCitizenEmail();
+    const nextEmail = getNextCitizenEmail(userDb, currentTurnUserEmail);
     setCurrentTurnUserEmail(nextEmail);
     localStorage.setItem("sabkhooneh_turn_email", nextEmail);
     setIsSkippedToday(false);
