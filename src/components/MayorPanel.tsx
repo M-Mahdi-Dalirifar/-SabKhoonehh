@@ -107,7 +107,7 @@ export default function MayorPanel({
     if (!request) return;
 
     // A. Update Request status in Supabase
-    await updateRequestStatusInSupabase(reqId, "approved");
+    await updateRequestStatusInSupabase(reqId, "approved", roomCode);
 
     // B. If extra task, award +15 points
     if (request.type === "extra_task") {
@@ -119,7 +119,7 @@ export default function MayorPanel({
       ? "فعالیت داوطلبانه اضافه را انجام داد و ۱۵+ امتیاز دریافت کرد." 
       : "درخواست مرخصی/سفر وی تایید شد.";
     
-    await logChoreHistoryToSupabase(request.name, request.email, actionDesc, request.type);
+    await logChoreHistoryToSupabase(request.name, request.email, actionDesc, request.type, roomCode);
 
     triggerToast(`✅ درخواست "${request.name}" تایید شد.`);
     if (syncAllData) await syncAllData();
@@ -129,7 +129,7 @@ export default function MayorPanel({
     const request = cartableRequests.find((r) => r.id === reqId);
     if (!request) return;
 
-    await updateRequestStatusInSupabase(reqId, "rejected");
+    await updateRequestStatusInSupabase(reqId, "rejected", roomCode);
 
     triggerToast(`❌ درخواست "${request.name}" رد شد.`);
     if (syncAllData) await syncAllData();
@@ -142,7 +142,8 @@ export default function MayorPanel({
 
     const success = await createAnnouncementInSupabase(
       inputAnnouncement.trim(),
-      currentUser.name
+      currentUser.name,
+      roomCode
     );
 
     if (success) {
@@ -157,7 +158,7 @@ export default function MayorPanel({
 
   const handleDeleteAnnouncement = async (id: string) => {
     const deletedText = announcements.find((a) => a.id === id)?.text;
-    const success = await deleteAnnouncementFromSupabase(id);
+    const success = await deleteAnnouncementFromSupabase(id, roomCode);
 
     if (success) {
       if (deletedText === activeBroadcast) {
@@ -187,7 +188,8 @@ export default function MayorPanel({
         newMemberName.trim(),
         newMemberEmail.trim(),
         "توسط شهردار به صورت مستقیم به هم‌اتاقی‌ها اضافه شد (لیست سفید).",
-        "system"
+        "system",
+        roomCode
       );
 
       setNewMemberName("");
@@ -211,7 +213,8 @@ export default function MayorPanel({
         targetUser.name,
         userEmail,
         `توسط شهردار دستکاری امتیاز شد (${value > 0 ? "+" : ""}${value} امتیاز)`,
-        "points"
+        "points",
+        roomCode
       );
 
       triggerToast(`🎯 امتیاز هم‌اتاقی ${targetUser.name} بروزرسانی شد (${value > 0 ? "+" : ""}${value}).`);

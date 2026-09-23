@@ -55,7 +55,7 @@ export default function Modals({
       date: "۱۴۰۵/۰۴/۰۴",
     };
 
-    const success = await createRequestInSupabase(newReq);
+    const success = await createRequestInSupabase(newReq, currentUser.suiteCode);
 
     if (success) {
       setIsTravelModalOpen(false);
@@ -79,7 +79,7 @@ export default function Modals({
       date: "۱۴۰۵/۰۴/۰۴",
     };
 
-    const success = await createRequestInSupabase(newReq);
+    const success = await createRequestInSupabase(newReq, currentUser.suiteCode);
 
     if (success) {
       setIsExtraTaskModalOpen(false);

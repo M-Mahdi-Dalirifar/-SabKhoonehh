@@ -96,7 +96,8 @@ export default function CitizenDashboard({
         myProfile.name,
         myProfile.email,
         "نظافت زباله‌ها و جاروی هفتگی سوئیت را با موفقیت انجام داد. (۲۵+ امتیاز)",
-        "chore"
+        "chore",
+        roomCode
       );
 
       // Advance turn and reset skip
@@ -132,7 +133,8 @@ export default function CitizenDashboard({
       myProfile.name,
       myProfile.email,
       `نوبت نظافت خود را به هم‌اتاقی دیگر (${nextUser ? nextUser.name : "بعدی"}) واگذار کرد.`,
-      "chore"
+      "chore",
+      roomCode
     );
 
     triggerToast(`🔄 نوبت نظافت شما به هم‌اتاقی بعدی انتقال یافت.`);
@@ -151,7 +153,8 @@ export default function CitizenDashboard({
       myProfile.name,
       myProfile.email,
       "امروز نظافت سوئیت را نیاز نداشت و نوبت نظافت وی محفوظ ماند.",
-      "chore"
+      "chore",
+      roomCode
     );
 
     triggerToast("✨ کار نظافت امروز لغو شد؛ نوبت شما برای مرتبه بعدی کماکان محفوظ ماند.");
