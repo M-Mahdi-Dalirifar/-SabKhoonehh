@@ -20,6 +20,16 @@ Current capabilities include:
 - Gemini-powered AI features
 - Responsive, mobile-first UI
 
+## Screenshots
+
+<p align="center">
+  <img src="assets/screenshots/onboarding-mobile.png" alt="SabKhooneh mayor registration screen in Persian" width="360" />
+  &nbsp;&nbsp;
+  <img src="assets/screenshots/dashboard-mobile.png" alt="SabKhooneh mobile chore dashboard in Persian" width="282" />
+</p>
+
+The interface is designed for right-to-left Persian workflows on mobile devices. The onboarding screen supports creating or joining a shared room, while the dashboard highlights today's assigned chore, upcoming turns, history, and household standings.
+
 ## Tech stack
 
 - React 19
