@@ -34,7 +34,7 @@ Current capabilities include:
 
 ### Prerequisites
 
-- Node.js 20 or newer
+- Node.js 22 or newer
 - npm
 - A Supabase project
 - A Gemini API key for AI features
@@ -107,7 +107,7 @@ Please do not report security issues through public Issues. See `SECURITY.md` fo
 
 ## License
 
-This project is prepared for release under the MIT License. Review `LICENSE` before publishing or distributing the repository as open source.
+SabKhooneh is available under the MIT License. See `LICENSE`.
 
 ## Maintainer
 
