@@ -102,6 +102,8 @@ SabKhooneh stores local fallback state in the browser and synchronizes supported
 
 Do not commit real API keys, service credentials, or production secrets. Use `.env.local` for local credentials and keep `.env.example` limited to safe placeholders.
 
+For a reproducible database schema, local seed data, and the current production-security limitations, see [`docs/SUPABASE_SETUP.md`](docs/SUPABASE_SETUP.md).
+
 ## Contributing
 
 Contributions are welcome. Start with `CONTRIBUTING.md`, then check open Issues for work marked as suitable for contributors.

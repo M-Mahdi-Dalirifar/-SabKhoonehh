@@ -5,8 +5,8 @@ This roadmap lists practical areas for improving SabKhooneh. Items are not guara
 ## Near term
 
 - Add automated tests for chore rotation and role-based flows
-- Improve Supabase Row Level Security documentation and validation
-- Add clearer setup instructions for the required database schema
+- Implement and test authenticated, room-scoped Supabase Row Level Security policies
+- Remove the development OTP shortcut before production use
 - Improve accessibility for keyboard and screen-reader users
 - Add loading, empty, and error states across synchronized views
 - Reduce use of broad `any` types in data mapping code
@@ -30,8 +30,7 @@ This roadmap lists practical areas for improving SabKhooneh. Items are not guara
 
 ## Contributor experience
 
-- Add reproducible local database setup
-- Add example seed data
+- Keep the reproducible database migration and fictional seed data aligned with application changes
 - Add Issue labels for bugs, features, documentation, and good first issues
 - Add contributor-focused starter tasks
 
